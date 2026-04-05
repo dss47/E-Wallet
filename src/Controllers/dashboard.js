@@ -1,4 +1,4 @@
-import {getbeneficiaries ,finduserbyaccount,findbeneficiarieByid} from "../Model/database.js";
+import { getbeneficiaries, finduserbyaccount, findbeneficiarieByid } from "../Model/database.js";
 const user = JSON.parse(sessionStorage.getItem("currentUser"));
 // DOM elements
 const greetingName = document.getElementById("greetingName");
@@ -14,7 +14,14 @@ const closeTransferBtn = document.getElementById("closeTransferBtn");
 const cancelTransferBtn = document.getElementById("cancelTransferBtn");
 const beneficiarySelect = document.getElementById("beneficiary");
 const sourceCard = document.getElementById("sourceCard");
-const submitTransferBtn=document.getElementById("submitTransferBtn");
+const submitTransferBtn = document.getElementById("submitTransferBtn");
+
+const rechargeBtn = document.getElementById("quickTopup");
+const rechargeSection = document.getElementById("rechargePopup");
+const closeRechargeBtn = document.getElementById("closeRechargeBtn");
+const cancelRechargeBtn = document.getElementById("cancelRechargeBtn");
+const submitRechargeBtn = document.getElementById("submitRechargeBtn");
+
 
 // Guard
 if (!user) {
@@ -23,11 +30,14 @@ if (!user) {
 }
 
 // Events
-  transferBtn.addEventListener("click", handleTransfersection);
-  closeTransferBtn.addEventListener("click", closeTransfer);
-  cancelTransferBtn.addEventListener("click", closeTransfer);
-  submitTransferBtn.addEventListener("click",handleTransfer)
-
+transferBtn?.addEventListener("click", handleTransfersection);
+closeTransferBtn?.addEventListener("click", closeTransfer);
+cancelTransferBtn?.addEventListener("click", closeTransfer);
+submitTransferBtn?.addEventListener("click", handleTransfer);
+rechargeBtn?.addEventListener("click", handleRechargeSection);
+closeRechargeBtn?.addEventListener("click", closeRecharge);
+cancelRechargeBtn?.addEventListener("click", closeRecharge);
+submitRechargeBtn?.addEventListener("click", handleRecharge);
 
 // Retrieve dashboard data
 const getDashboardData = () => {
@@ -49,28 +59,28 @@ const getDashboardData = () => {
   };
 };
 
-function renderDashboard(){
-const dashboardData = getDashboardData();
-if (dashboardData) {
-  greetingName.textContent = dashboardData.userName;
-  currentDate.textContent = dashboardData.currentDate;
-  solde.textContent = dashboardData.availableBalance;
-  incomeElement.textContent = dashboardData.monthlyIncome;
-  expensesElement.textContent = dashboardData.monthlyExpenses;
-  activecards.textContent = dashboardData.activeCards;
-}
-// Display transactions
-transactionsList.innerHTML = "";
-user.wallet.transactions.forEach(transaction => {
-  const transactionItem = document.createElement("div");
-  transactionItem.className = "transaction-item";
-  transactionItem.innerHTML = `
+function renderDashboard() {
+  const dashboardData = getDashboardData();
+  if (dashboardData) {
+    greetingName.textContent = dashboardData.userName;
+    currentDate.textContent = dashboardData.currentDate;
+    solde.textContent = dashboardData.availableBalance;
+    incomeElement.textContent = dashboardData.monthlyIncome;
+    expensesElement.textContent = dashboardData.monthlyExpenses;
+    activecards.textContent = dashboardData.activeCards;
+  }
+  // Display transactions
+  transactionsList.innerHTML = "";
+  user.wallet.transactions.forEach(transaction => {
+    const transactionItem = document.createElement("div");
+    transactionItem.className = "transaction-item";
+    transactionItem.innerHTML = `
     <div>${transaction.date}</div>
     <div>${transaction.amount} MAD</div>
     <div>${transaction.type}</div>
   `;
-  transactionsList.appendChild(transactionItem);
-});
+    transactionsList.appendChild(transactionItem);
+  });
 
 }
 renderDashboard();
@@ -102,7 +112,7 @@ function renderCards() {
   user.wallet.cards.forEach((card) => {
     const option = document.createElement("option");
     option.value = card.numcards;
-    option.textContent = card.type+"****"+card.numcards;
+    option.textContent = card.type + "****" + card.numcards;
     sourceCard.appendChild(option);
   });
 }
@@ -231,12 +241,12 @@ function checkUser(numcompte) {
 function checkSolde(expediteur, amount) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
-      if (expediteur.wallet.balance > amount) {
+      if (expediteur.wallet.balance >= amount) {
         resolve("Sufficient balance");
       } else {
         reject(new Error("Insufficient balance"));
       }
-    }, 3000);
+    }, 2000);
   });
 }
 
@@ -258,7 +268,7 @@ function addtransactions(expediteur, destinataire, amount) {
         id: Date.now(),
         type: "credit",
         amount: amount,
-        date: Date.now().toLocaleString(),
+        date: new Date().toLocaleString(),
         from: expediteur.name
       };
       //create debit transaction
@@ -266,53 +276,69 @@ function addtransactions(expediteur, destinataire, amount) {
         id: Date.now(),
         type: "debit",
         amount: amount,
-        date: Date.now().toLocaleString(),
+        date: new Date().toLocaleString(),
         to: destinataire.name,
       };
       expediteur.wallet.transactions.push(debit);
       destinataire.wallet.transactions.push(credit);
       resolve("transaction added successfully");
-    }, 3000);
+    }, 2000);
   });
 }
 
 // **************************************transfer***************************************************//
 
-function transfer(expediteur, numcompte, amount) {
-  let destinataire;
-
-  return checkUser(numcompte)
-    .then((beneficiary) => {
-      destinataire = beneficiary;
+async function transfer(expediteur, numcompte, amount) {
+    try{
+      const destinataire = await checkUser(numcompte);
       console.log("Étape 1: Destinataire trouve -", destinataire.name);
-      return checkSolde(expediteur, amount);
-    })
-    .then((soldemessage) => {
+
+      const soldemessage=await checkSolde(expediteur, amount); 
       console.log(soldemessage);
-      return updateSolde(expediteur, destinataire, amount);
-    })
-    .then(() => addtransactions(expediteur, destinataire, amount))
-    .then((addtransactionMessage) => {
+
+      await updateSolde(expediteur, destinataire, amount);
+
+      const addtransactionMessage = await addtransactions(expediteur, destinataire, amount);
       console.log(addtransactionMessage);
+      
+      sessionStorage.setItem("currentUser", JSON.stringify(expediteur));
+      
       renderDashboard();
-    })
-    .catch((error) => {
-      console.log(error.message || error);
-    });
+      closeTransfer();
+      alert("Transfert effectue");
+
+    }
+    catch(error){
+      alert(error.message);
+    }
 }
 
 
 function handleTransfer(e) {
- e.preventDefault();
+  e.preventDefault();
   const beneficiaryId = document.getElementById("beneficiary").value;
-  const beneficiaryAccount=findbeneficiarieByid(user.id,beneficiaryId).account;
-  const sourceCard = document.getElementById("sourceCard").value;
+  const beneficiary = findbeneficiarieByid(user.id, beneficiaryId);
+  if (!beneficiary) {
+    alert("Choisir un beneficiaire");
+    return;
+  }
 
-  const amount = Number(document.getElementById("amount").value);
+  const selectedCard = document.getElementById("sourceCard").value;
+  if (!selectedCard) {
+    alert("Choisir une carte source");
+    return;
+  }
 
-transfer(user, beneficiaryAccount, amount);
+  const amountInput = transferSection ? transferSection.querySelector("#amount") : null;
+  const amount = Number(amountInput ? amountInput.value : 0);
+  if (!amount || amount <= 0) {
+    alert("Montant invalide");
+    return;
+  }
 
-} 
+  transfer(user, beneficiary.account, amount);
+
+}
 
 /*
     function func1(number,callback){
@@ -333,3 +359,121 @@ transfer(user, beneficiaryAccount, amount);
 
     func1(4,produit);
     */
+
+//############################  Recharge  #################################//
+
+function handleRechargeSection() {
+  rechargeSection.classList.add("active");
+  document.body.classList.add("popup-open");
+}
+function closeRecharge() {
+  rechargeSection.classList.remove("active");
+  document.body.classList.remove("popup-open");
+}
+
+function renderCardsforRecharge() {
+  user.wallet.cards.forEach((card) => {
+    const option = document.createElement("option");
+    option.value = card.numcards;
+    option.textContent = card.type + "****" + card.numcards;
+    sourceCardforRecharge.appendChild(option);
+  });
+}
+
+renderCardsforRecharge();
+
+function checkAuth(user) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if(user){
+        resolve("Utilisateur authentifié");
+      } else {
+        reject(new Error("Utilisateur non authentifié"));
+      }
+    }, 2000);
+  });
+}
+
+function hasCards(user) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if(user.wallet.cards.length > 0){
+        resolve("Utilisateur a des cartes");
+      } else {
+        reject(new Error("Utilisateur n'a pas de cartes"));
+      }
+    }, 2000);
+  });
+}
+
+function checkCard(numcard) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const card = user.wallet.cards.find(c => c.numcards === numcard);
+      if(card && new Date(card.expiry) > new Date()){ 
+        resolve("Carte valide");
+      } else {
+        reject(new Error("Carte non trouvée ou invalide"));
+      }
+    }, 2000);
+  });
+}
+
+function processRecharge(user, amount) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      user.wallet.balance += amount;
+      const transaction = {
+        id: Date.now(),
+        type: "credit",
+        amount: amount,
+        date: new Date().toLocaleString(),
+        from: "Recharge"
+      };
+      user.wallet.transactions.push(transaction);
+      resolve("Recharge effectuée");
+    }, 2000);
+  });
+}
+
+
+async function recharge(user, amount, selectedCard) {
+  try{
+    await checkAuth(user);
+    await hasCards(user);
+    await checkCard(selectedCard);
+
+    const message=await processRecharge(user,amount);
+    console.log(message);
+    
+    sessionStorage.setItem("currentUser", JSON.stringify(user));
+    
+    renderDashboard();
+    
+    closeRecharge();
+
+    alert("Recharge effectuée avec succès");
+  }
+    catch(error) {
+      alert(error.message);
+    };
+}
+
+function handleRecharge(e) {
+  e.preventDefault();
+  
+  const selectedCard = document.getElementById("sourceCardforRecharge").value;
+  
+  const amountInput = document.getElementById("amountInput").value;
+  const amount = Number(amountInput);
+  
+  if (!selectedCard) {
+    alert("Choisir une carte source");
+    return;
+  }
+  if (!amount || amount <= 0 || amount <10 || amount > 5000 || isNaN(amount)) {
+    alert("Montant invalide (entre 10 et 5000 MAD)");
+    return;
+  }
+  recharge(user, amount, selectedCard);
+ }
